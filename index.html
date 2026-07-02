@@ -65,6 +65,51 @@
     #answer{max-width:100%; font-size:1.05rem;}                         /* 16px↑ 유지(줌 방지) */
     #btnGo{max-width:100%;}
   }
+  /* ===== 단어장(설명 보기) 목록 ===== */
+  .wordgrid{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;}
+  .wchip{background:#0e1017; border:1px solid var(--line); border-radius:10px;
+         padding:8px 12px; cursor:pointer; display:flex; align-items:baseline; gap:8px;
+         min-height:44px;}
+  .wchip:hover{border-color:var(--accent);}
+  .wchip .wk{font-size:1.25rem; font-weight:700;}
+  .wchip .wr{color:var(--muted); font-size:.85rem;}
+  .wsearch{width:100%; background:#0e1017; color:var(--fg); border:1px solid var(--line);
+           border-radius:10px; padding:10px 12px; font-size:1rem; margin-bottom:10px;}
+  #btnDetail{background:transparent; color:var(--fg); border:1px solid var(--line);
+             margin-top:8px; display:none;}
+  /* ===== 상세 카드 모달 (JLPT Plus 스타일 · 라이트) ===== */
+  .modal-back{position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50;
+              display:none; align-items:flex-start; justify-content:center; overflow-y:auto;
+              padding:0;}
+  .modal-back.show{display:flex;}
+  .sheet{background:#f5f6f8; color:#1c1f26; width:100%; max-width:560px; min-height:100%;
+         padding:0 0 40px;}
+  .sheet-top{position:sticky; top:0; background:#f5f6f8; display:flex; align-items:center;
+             justify-content:space-between; padding:14px 18px; border-bottom:1px solid #e3e5ea;}
+  .sheet-top .title{font-size:1.35rem; font-weight:700;}
+  .sheet-top .x{background:transparent; color:#5b6070; border:0; font-size:1.6rem; padding:0 6px;
+                cursor:pointer; line-height:1; min-height:auto;}
+  .sheet-body{padding:16px 18px;}
+  .status-row{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
+  .pill{background:#eceef2; color:#5b6070; border-radius:999px; padding:6px 14px; font-size:.9rem;}
+  .card{background:#fff; border:1px solid #e3e5ea; border-radius:14px; padding:16px; margin-bottom:18px;}
+  .sec-label{color:#8b90a3; font-size:.95rem; margin:18px 0 8px;}
+  .kanji-head{display:flex; align-items:flex-start; gap:16px;}
+  .kanji-big{font-size:3.6rem; font-weight:700; line-height:1; color:#1c1f26;}
+  .kv{display:flex; align-items:center; gap:10px; margin:5px 0;}
+  .kv .k{background:#eceef2; color:#5b6070; border-radius:7px; padding:3px 9px; font-size:.85rem; min-width:44px; text-align:center;}
+  .kv .v{font-size:1.15rem;}
+  .meaning-badge{background:#ffe9d9; color:#c96a2b; border-radius:8px; padding:3px 10px; font-size:.9rem; font-weight:700;}
+  .ex-ja{font-size:1.5rem; font-weight:600; margin:6px 0 4px;}
+  .ex-kana{color:#8b90a3; font-size:1rem; margin-bottom:4px;}
+  .ex-ko{color:#3a3f4b; font-size:1.05rem;}
+  .ex-item{border-top:1px solid #eceef2; padding-top:12px; margin-top:12px;}
+  .ex-item:first-child{border-top:0; padding-top:0; margin-top:0;}
+  .link-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .extlink{display:inline-flex; align-items:center; gap:6px; color:#2f6bff; text-decoration:none;
+           font-size:1.05rem; font-weight:600; padding:8px 4px;}
+  .note{color:#8b90a3; font-size:.85rem; margin-top:6px; line-height:1.5;}
+  @media (max-width:600px){ .kanji-big{font-size:3rem;} .sheet-top .title{font-size:1.2rem;} }
 </style>
 </head>
 <body>
@@ -116,6 +161,13 @@
     <div class="count">로마자→히라가나 자동 변환(IME 불요). <b>단어</b>는 기본 "읽기/뜻"(예: <span class="kbd">aida/동안</span>) 둘 다 입력, "읽기만 채점" 켜면 읽기만. <b>문장</b>은 일본어로 입력. <span class="kbd">Enter</span> 로 판정.</div>
   </div>
 
+  <!-- 단어장 (탭하면 설명 카드) -->
+  <div class="panel">
+    <h2>단어장 — 탭하면 설명 📖</h2>
+    <input class="wsearch" id="wordSearch" placeholder="한자·읽기·뜻으로 검색" autocomplete="off">
+    <div class="wordgrid" id="wordGrid"></div>
+  </div>
+
   <!-- 퀴즈 -->
   <div class="panel hidden" id="quizPanel">
     <div id="quiz">
@@ -125,9 +177,21 @@
       <input id="answer" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" inputmode="latin" placeholder="읽기 입력 (예: gakkou)">
       <div class="kana-preview" id="kanaPreview"></div>
       <button id="btnGo">판정 ▶</button>
+      <button id="btnDetail">📖 이 문제 설명 보기</button>
       <div class="feedback" id="feedback"></div>
     </div>
     <div id="result" class="stats hidden" style="text-align:center;"></div>
+  </div>
+</div>
+
+<!-- 상세 설명 카드 (JLPT Plus 스타일) -->
+<div class="modal-back" id="detailBack">
+  <div class="sheet" id="detailSheet" role="dialog" aria-modal="true">
+    <div class="sheet-top">
+      <div class="title" id="dTitle">—</div>
+      <button class="x" id="dClose" aria-label="닫기">×</button>
+    </div>
+    <div class="sheet-body" id="dBody"></div>
   </div>
 </div>
 
@@ -384,8 +448,110 @@ if(typeof document !== 'undefined'){ (function(){
   function refreshCount(){
     $('count').textContent = '등록된 단어: ' + words.length + '개';
     $('countS').textContent = '등록된 문장: ' + sentences.length + '개';
+    if($('wordGrid')) renderWordGrid();
   }
   function pruneStats(pred){ Object.keys(stats).forEach(function(k){ if(pred(k)) delete stats[k]; }); saveStats(); }
+
+  // ---- 단어장 목록 + 상세 설명 카드 (JLPT Plus 스타일) ----
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function renderWordGrid(){
+    var q = ($('wordSearch').value || '').trim().toLowerCase();
+    var list = words.filter(function(w){
+      if(!q) return true;
+      return (w.kanji+' '+w.reading+' '+(w.meaning||'')).toLowerCase().indexOf(q) >= 0;
+    });
+    if(!list.length){ $('wordGrid').innerHTML = '<span class="count">'+(words.length?'검색 결과 없음':'등록된 단어가 없습니다')+'</span>'; return; }
+    $('wordGrid').innerHTML = list.map(function(w){
+      return '<div class="wchip" data-k="'+esc(w.kanji)+'"><span class="wk">'+esc(w.kanji)+
+             '</span><span class="wr">'+esc(w.reading)+'</span></div>';
+    }).join('');
+    Array.prototype.forEach.call($('wordGrid').querySelectorAll('.wchip'), function(el){
+      el.onclick = function(){
+        var w = words.find(function(x){ return x.kanji === el.getAttribute('data-k'); });
+        if(w) openDetail({_t:'w', kanji:w.kanji, reading:w.reading, meaning:w.meaning});
+      };
+    });
+  }
+
+  // 등록된 문장 중 해당 한자를 포함하는 것 = 예문
+  function matchedExamples(kanji){
+    return sentences.filter(function(s){ return s.ja && s.ja.indexOf(kanji) >= 0; });
+  }
+
+  // 주인 지정 프롬프트 — 단어·예문 자동 삽입
+  function buildPrompt(word, exampleJa){
+    var ex = exampleJa || '(적절한 예문을 하나 만들어 분석해주세요)';
+    return '저는 일본어를 공부하는 한국어 원어민입니다. 아래 요청사항에 맞춰 상세한 설명을 부탁드립니다.\n\n' +
+      '1. 단어 설명\n' +
+      '   - 단어: ' + word.kanji + ' (' + word.reading + (word.meaning ? ' / ' + word.meaning : '') + ')\n' +
+      '   - 요구사항: 이 단어의 기본적인 의미, 함께 자주 쓰이는 표현(연어)을 알려주세요. 필요하다면 문맥에 따른 뉘앙스 차이도 알려주세요.\n\n' +
+      '2. 예문 분석\n' +
+      '   - 예문: ' + ex + '\n' +
+      '   - 요구사항:\n' +
+      '       a. 전체 문장의 자연스러운 한국어 번역\n' +
+      '       b. 문법 분석: 문장의 구조와 핵심 문법 포인트를 짚어주세요.\n' +
+      '       c. 어휘 설명: 이 단어 외에 알아둬야 할 주요 단어나 표현이 있다면 설명해주세요.\n\n' +
+      '3. 한자는 외우기 쉬운 설명(암기법)을 붙여주세요. 그리고 이 단어와 관련해 이어서 질문할 수 있게 해주세요.';
+  }
+
+  function openDetail(it){
+    var isSent = it._t === 's';
+    var kanji  = isSent ? it.ja : it.kanji;
+    var st = stats[key(it)] || {c:0, w:0};
+    var statusText = (st.c || st.w) ? ('학습 기록 · 정답 ' + st.c + ' / 오답 ' + st.w) : '아직 학습하지 않음';
+    var exs = isSent ? [it] : matchedExamples(kanji);
+    var firstEx = exs.length ? exs[0].ja : '';
+
+    var naverQ = encodeURIComponent(kanji);
+    var promptWord = isSent ? {kanji: it.ja, reading: it.kana || '', meaning: it.ko} : it;
+    var gptURL = 'https://chatgpt.com/?q=' + encodeURIComponent(buildPrompt(promptWord, firstEx));
+
+    var html = '<div class="status-row"><span class="pill">' + esc(statusText) + '</span></div>';
+
+    if(!isSent){
+      html += '<div class="sec-label">한자</div>' +
+        '<div class="card"><div class="kanji-head">' +
+          '<div class="kanji-big">' + esc(it.kanji) + '</div>' +
+          '<div>' +
+            (it.meaning ? '<div class="kv"><span class="meaning-badge">' + esc(it.meaning) + '</span></div>' : '') +
+            '<div class="kv"><span class="k">읽기</span><span class="v">' + esc(it.reading) + '</span></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="note">음독·훈독·부수·JLPT 레벨은 아래 <b>네이버 사전</b>·<b>ChatGPT</b>에서 확인하세요.</div>' +
+        '</div>';
+    }
+
+    html += '<div class="sec-label">예문</div><div class="card">';
+    if(exs.length){
+      html += exs.map(function(s){
+        return '<div class="ex-item"><div class="ex-ja">' + esc(s.ja) + '</div>' +
+               (s.kana ? '<div class="ex-kana">' + esc(s.kana) + '</div>' : '') +
+               '<div class="ex-ko">' + esc(s.ko) + '</div></div>';
+      }).join('');
+    } else {
+      html += '<div class="note">등록된 문장 중 이 한자를 쓴 예문이 아직 없습니다. ChatGPT 링크로 예문·해설을 받아보세요.</div>';
+    }
+    html += '</div>';
+
+    html += '<div class="sec-label">외부 링크</div><div class="link-row">' +
+      '<a class="extlink" target="_blank" rel="noopener" href="https://ja.dict.naver.com/#/search?query=' + naverQ + '">네이버 사전 ↗</a>' +
+      '<a class="extlink" target="_blank" rel="noopener" href="' + esc(gptURL) + '">ChatGPT 해설 ↗</a>' +
+      '</div>' +
+      '<div class="note">ChatGPT 링크는 위 단어·예문이 채워진 질문으로 열립니다.</div>';
+
+    $('dTitle').textContent = isSent ? '예문 설명' : it.kanji;
+    $('dBody').innerHTML = html;
+    $('detailBack').classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeDetail(){ $('detailBack').classList.remove('show'); document.body.style.overflow = ''; }
+  $('dClose').onclick = closeDetail;
+  $('detailBack').onclick = function(e){ if(e.target === $('detailBack')) closeDetail(); };
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeDetail(); });
+  $('wordSearch').addEventListener('input', renderWordGrid);
 
   // ---- 등록: 단어 (기존 키·형식 유지 = 하위호환) ----
   function mergeWords(newList){
@@ -482,6 +648,7 @@ if(typeof document !== 'undefined'){ (function(){
     else { $('kanji').className = 'kanji'; $('kanji').textContent = current.kanji; }
     $('progress').textContent = '남은 문제: ' + queue.length + ' / 이번 라운드 ' + roundTotal + '개';
     $('btnGo').textContent = '판정 ▶';
+    $('btnDetail').style.display = 'block';
     setPlaceholder(); showHint(); $('answer').focus();
   }
 
@@ -503,6 +670,8 @@ if(typeof document !== 'undefined'){ (function(){
   });
   // 모바일 판정/다음 버튼 — Enter와 동일 동작
   $('btnGo').onclick = function(){ if(awaitingNext){ next(); } else { judge(); } };
+  // 📖 현재 문제 설명 카드
+  $('btnDetail').onclick = function(){ if(current) openDetail(current); };
 
   function judge(){
     var raw = $('answer').value;
