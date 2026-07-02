@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#12141c">
+<title>일본어 한자 암기 퀴즈</title>
+<style>
+  :root{ --bg:#12141c; --panel:#1c1f2b; --line:#2c3040; --fg:#e8eaf0;
+         --muted:#8b90a3; --accent:#5b8cff; --ok:#37d67a; --ng:#ff5c7a; }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+       background:var(--bg); color:var(--fg); line-height:1.5;}
+  .wrap{max-width:760px; margin:0 auto; padding:20px 16px 60px;}
+  h1{font-size:1.4rem; margin:.2em 0 .6em;}
+  h2{font-size:1rem; color:var(--muted); margin:1.4em 0 .5em; font-weight:600;}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:14px;
+         padding:18px; margin-bottom:16px;}
+  textarea{width:100%; min-height:120px; background:#0e1017; color:var(--fg);
+           border:1px solid var(--line); border-radius:10px; padding:10px;
+           font-family:ui-monospace,Menlo,monospace; font-size:.9rem; resize:vertical;}
+  .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px;}
+  button{background:var(--accent); color:#fff; border:0; border-radius:10px;
+          padding:10px 16px; font-size:.95rem; cursor:pointer; font-weight:600;}
+  button.ghost{background:transparent; color:var(--fg); border:1px solid var(--line);}
+  button.danger{background:transparent; color:var(--ng); border:1px solid var(--ng);}
+  button:hover{filter:brightness(1.1);}
+  input[type=file]{color:var(--muted); font-size:.85rem;}
+  label.toggle{display:inline-flex; align-items:center; gap:6px; color:var(--muted);
+               font-size:.9rem; cursor:pointer;}
+  .count{color:var(--muted); font-size:.9rem; margin-top:8px;}
+  /* quiz */
+  #quiz{text-align:center;}
+  .progress{color:var(--muted); font-size:.85rem; margin-bottom:6px;}
+  .kanji{font-size:4.4rem; font-weight:700; letter-spacing:.05em; margin:.15em 0;}
+  .kanji.sentence{font-size:1.6rem; font-weight:600; white-space:pre-wrap; line-height:1.5; letter-spacing:normal;}
+  select{background:#0e1017; color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:.9rem;}
+  .hint{color:var(--muted); min-height:1.4em; font-size:1.05rem;}
+  #answer{width:100%; max-width:360px; text-align:center; font-size:1.5rem;
+          padding:12px; border-radius:12px; border:1px solid var(--line);
+          background:#0e1017; color:var(--fg); margin-top:8px;}
+  .kana-preview{min-height:1.8em; font-size:1.4rem; color:var(--accent); margin:8px 0;}
+  .feedback{min-height:2.4em; font-size:1.15rem; margin-top:6px;}
+  .feedback.ok{color:var(--ok);} .feedback.ng{color:var(--ng);}
+  .big{font-size:2rem;}
+  .stats .missed{color:var(--ng); font-family:monospace; text-align:left;
+                 display:inline-block; margin-top:8px;}
+  .hidden{display:none;}
+  .kbd{font-family:monospace; background:#0e1017; border:1px solid var(--line);
+       border-radius:6px; padding:1px 6px; font-size:.85rem; color:var(--muted);}
+  /* 모바일 판정/다음 버튼 (입력창 아래, 데스크톱에서도 표시 — Enter 병행) */
+  #btnGo{width:100%; max-width:360px; display:block; margin:10px auto 0; padding:14px; font-size:1.05rem;}
+  /* 아이폰/모바일 최적화 */
+  @media (max-width:600px){
+    .wrap{padding:12px 12px 48px;}
+    h1{font-size:1.25rem;}
+    .panel{padding:14px; border-radius:12px;}
+    .kanji{font-size:3rem;}
+    .kanji.sentence{font-size:1.15rem;}
+    .row{gap:10px;}
+    button{padding:12px 16px; min-height:44px; font-size:1rem;}        /* 터치타깃 44px+ */
+    select{min-height:44px;}
+    #answer{max-width:100%; font-size:1.05rem;}                         /* 16px↑ 유지(줌 방지) */
+    #btnGo{max-width:100%;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🈶 일본어 한자 암기 퀴즈</h1>
+
+  <!-- 등록 -->
+  <div class="panel">
+    <h2>단어 등록</h2>
+    <textarea id="input" placeholder="줄당 한 단어:  한자,읽기,뜻&#10;구분자는 콤마/탭/공백 자동 감지&#10;예)  学校,がっこう,학교&#10;       先生   せんせい   선생님"></textarea>
+    <div class="row">
+      <button id="btnAdd">등록/추가</button>
+      <input type="file" id="file" accept=".csv,.txt">
+      <button class="ghost" id="btnSample">교재 단어 78</button>
+      <button class="danger" id="btnClear">전체 삭제</button>
+    </div>
+    <div class="count" id="count">등록된 단어: 0개</div>
+  </div>
+
+  <!-- 문장 등록 -->
+  <div class="panel">
+    <h2>문장 등록</h2>
+    <textarea id="inputS" placeholder="줄당 한 문장:  한국어문장 | 일본어문장 | 가나읽기(선택)&#10;구분자: 탭 / | / =>  (콤마·공백 불가 — 문장에 포함되므로)&#10;예)  빨간 가방을 가지고 싶습니다 | 赤いかばんが欲しいです | あかいかばんがほしいです"></textarea>
+    <div class="row">
+      <button id="btnAddS">등록/추가</button>
+      <input type="file" id="fileS" accept=".csv,.txt">
+      <button class="ghost" id="btnSampleS">내장 문장 8</button>
+      <button class="danger" id="btnClearS">문장 삭제</button>
+    </div>
+    <div class="count" id="countS">등록된 문장: 0개</div>
+  </div>
+
+  <!-- 옵션 -->
+  <div class="panel">
+    <h2>옵션</h2>
+    <div class="row">
+      <label class="toggle">출제 범위:
+        <select id="optRange">
+          <option value="word">단어만</option>
+          <option value="sentence">문장만</option>
+          <option value="both" selected>모두(섞기)</option>
+        </select>
+      </label>
+      <label class="toggle"><input type="checkbox" id="optReadingOnly"> 읽기만 채점</label>
+      <label class="toggle"><input type="checkbox" id="optHint" disabled> 뜻 힌트 보기</label>
+      <label class="toggle"><input type="checkbox" id="optWeak"> 약한 단어 우선</label>
+      <button id="btnStart">퀴즈 시작 ▶</button>
+    </div>
+    <div class="count">로마자→히라가나 자동 변환(IME 불요). <b>단어</b>는 기본 "읽기/뜻"(예: <span class="kbd">aida/동안</span>) 둘 다 입력, "읽기만 채점" 켜면 읽기만. <b>문장</b>은 일본어로 입력. <span class="kbd">Enter</span> 로 판정.</div>
+  </div>
+
+  <!-- 퀴즈 -->
+  <div class="panel hidden" id="quizPanel">
+    <div id="quiz">
+      <div class="progress" id="progress"></div>
+      <div class="kanji" id="kanji">—</div>
+      <div class="hint" id="hint"></div>
+      <input id="answer" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" inputmode="latin" placeholder="읽기 입력 (예: gakkou)">
+      <div class="kana-preview" id="kanaPreview"></div>
+      <button id="btnGo">판정 ▶</button>
+      <div class="feedback" id="feedback"></div>
+    </div>
+    <div id="result" class="stats hidden" style="text-align:center;"></div>
+  </div>
+</div>
+
+<script>
+//===PURE_START=== (아래 두 함수는 node 유닛테스트가 이 마커 사이를 그대로 추출해 검증)
+// 로마자 → 히라가나 변환 (그리디 최장일치 + 촉음/발음ん 처리). 히라가나/기타문자는 통과.
+function romajiToHiragana(str){
+  var MAP = {
+    // 3글자 요음/특수
+    kya:'きゃ',kyu:'きゅ',kyo:'きょ',
+    sha:'しゃ',shu:'しゅ',sho:'しょ',shi:'し',
+    sya:'しゃ',syu:'しゅ',syo:'しょ',
+    cha:'ちゃ',chu:'ちゅ',cho:'ちょ',chi:'ち',
+    cya:'ちゃ',cyu:'ちゅ',cyo:'ちょ',tsu:'つ',
+    nya:'にゃ',nyu:'にゅ',nyo:'にょ',
+    hya:'ひゃ',hyu:'ひゅ',hyo:'ひょ',
+    mya:'みゃ',myu:'みゅ',myo:'みょ',
+    rya:'りゃ',ryu:'りゅ',ryo:'りょ',
+    gya:'ぎゃ',gyu:'ぎゅ',gyo:'ぎょ',
+    ja:'じゃ',ju:'じゅ',jo:'じょ',ji:'じ',
+    jya:'じゃ',jyu:'じゅ',jyo:'じょ',
+    bya:'びゃ',byu:'びゅ',byo:'びょ',
+    pya:'ぴゃ',pyu:'ぴゅ',pyo:'ぴょ',
+    dya:'ぢゃ',dyu:'ぢゅ',dyo:'ぢょ',
+    fa:'ふぁ',fi:'ふぃ',fe:'ふぇ',fo:'ふぉ',
+    // 2글자
+    ka:'か',ki:'き',ku:'く',ke:'け',ko:'こ',
+    sa:'さ',si:'し',su:'す',se:'せ',so:'そ',
+    ta:'た',ti:'ち',tu:'つ',te:'て',to:'と',
+    na:'な',ni:'に',nu:'ぬ',ne:'ね',no:'の',
+    ha:'は',hi:'ひ',hu:'ふ',fu:'ふ',he:'へ',ho:'ほ',
+    ma:'ま',mi:'み',mu:'む',me:'め',mo:'も',
+    ya:'や',yu:'ゆ',yo:'よ',
+    ra:'ら',ri:'り',ru:'る',re:'れ',ro:'ろ',
+    wa:'わ',wo:'を',wi:'ゐ',we:'ゑ',
+    ga:'が',gi:'ぎ',gu:'ぐ',ge:'げ',go:'ご',
+    za:'ざ',zi:'じ',zu:'ず',ze:'ぜ',zo:'ぞ',
+    da:'だ',di:'ぢ',du:'づ',de:'で',do:'ど',
+    ba:'ば',bi:'び',bu:'ぶ',be:'べ',bo:'ぼ',
+    pa:'ぱ',pi:'ぴ',pu:'ぷ',pe:'ぺ',po:'ぽ',
+    // 1글자 모음
+    a:'あ',i:'い',u:'う',e:'え',o:'お'
+  };
+  var s = String(str).toLowerCase();
+  var out = '', i = 0, VOW = 'aiueo';
+  while(i < s.length){
+    var c = s[i], c2 = s[i+1];
+    if(c === '-'){ out += 'ー'; i++; continue; }   // 하이픈 → 장음(ー): te-buru→てーぶる
+    // 촉음(っ): 같은 자음 연속 (n 제외, 모음 제외) 또는 t+ch
+    if(c2 && c === c2 && VOW.indexOf(c) < 0 && c !== 'n' && /[a-z]/.test(c)){ out+='っ'; i++; continue; }
+    if(c === 't' && c2 === 'c' && s[i+2] === 'h'){ out+='っ'; i++; continue; }
+    // 발음 ん: n 뒤가 모음/ y 가 아니면 (또는 문자열 끝) → ん
+    if(c === 'n'){
+      if(c2 === undefined || (VOW.indexOf(c2) < 0 && c2 !== 'y')){
+        out += 'ん'; i += (c2 === "'") ? 2 : 1; continue;   // n' 는 어포스트로피까지 소비
+      }
+    }
+    // m 뒤 b/p → ん (shimbun, tempura 표기)
+    if(c === 'm' && (c2 === 'b' || c2 === 'p')){ out += 'ん'; i++; continue; }
+    // 최장일치 3→2→1
+    var matched = false;
+    for(var len = 3; len >= 1; len--){
+      var chunk = s.substr(i, len);
+      if(MAP[chunk]){ out += MAP[chunk]; i += len; matched = true; break; }
+    }
+    if(!matched){ out += s[i]; i++; }   // 로마자 아님(히라가나·기호·공백) → 통과
+  }
+  return out;
+}
+
+// 단어목록 파싱: 줄당 "한자 읽기 뜻", 구분자 콤마/탭/공백 자동감지, 빈줄 무시, 한자 기준 중복제거
+function parseWordList(text){
+  var lines = String(text).split(/\r?\n/);
+  var seen = {}, list = [];
+  for(var k = 0; k < lines.length; k++){
+    var line = lines[k].trim();
+    if(!line) continue;
+    var parts, byComma = false;
+    if(line.indexOf('\t') >= 0) parts = line.split('\t');
+    else if(line.indexOf(',') >= 0){ parts = line.split(','); byComma = true; }
+    else parts = line.split(/\s+/);
+    parts = parts.map(function(p){ return p.trim(); }).filter(function(p){ return p.length; });
+    if(parts.length < 2) continue;               // 최소 한자+읽기
+    // 뜻이 여러 개면 보존: 콤마구분이면 ','로, 아니면 ' '로 join
+    var kanji = parts[0], reading = parts[1], meaning = parts.slice(2).join(byComma ? ',' : ' ');
+    if(seen[kanji]) continue;                     // 중복(한자 기준) 제거
+    seen[kanji] = true;
+    list.push({ kanji: kanji, reading: reading, meaning: meaning });
+  }
+  return list;
+}
+
+// 문장목록 파싱: 줄당 "한국어 | 일본어 | 가나읽기(선택)", 구분자 탭→|→=> 순서(콤마·공백 금지). 한국어 기준 dedup.
+function parseSentenceList(text){
+  var lines = String(text).split(/\r?\n/);
+  var seen = {}, list = [];
+  for(var k = 0; k < lines.length; k++){
+    var line = lines[k].trim();
+    if(!line) continue;
+    var parts;
+    if(line.indexOf('\t') >= 0) parts = line.split('\t');
+    else if(line.indexOf('|') >= 0) parts = line.split('|');
+    else if(line.indexOf('=>') >= 0) parts = line.split('=>');
+    else continue;                               // 구분자 없음 → 무시
+    var ko = (parts[0]||'').trim(), ja = (parts[1]||'').trim(), kana = (parts[2]||'').trim();
+    if(!ko || !ja) continue;
+    if(seen[ko]) continue;
+    seen[ko] = true;
+    list.push({ ko: ko, ja: ja, kana: kana });
+  }
+  return list;
+}
+
+// 판정 정규화: 공백(전각 포함)·구두점 제거 후 비교용
+function normalizeAnswer(s){
+  return String(s).replace(/[\s　。、！？!?.,·「」『』]/g, '');
+}
+
+// 뜻 문자열 → 후보 배열 (콤마/、/·/슬래시/공백 구분)
+function meaningCandidates(meaning){
+  return String(meaning).split(/[,、·\/\s]+/).map(function(x){ return x.trim(); }).filter(function(x){ return x.length; });
+}
+
+// 단어모드 답 판정: raw="읽기/뜻". 읽기=romaji→가나 일치, 뜻=후보 중 하나라도 일치.
+// readingOnly=true 또는 뜻 미등록이면 뜻은 통과 처리.
+function judgeWordAnswer(raw, word, readingOnly){
+  raw = String(raw);
+  var slash = raw.indexOf('/');
+  var readingPart = slash >= 0 ? raw.slice(0, slash) : raw;
+  var meaningPart = slash >= 0 ? raw.slice(slash + 1) : '';
+  var readingOk = romajiToHiragana(readingPart.trim()) === word.reading;
+  var hasM = !!(word.meaning && String(word.meaning).trim());
+  var meaningOk;
+  if(readingOnly || !hasM){ meaningOk = true; }
+  else {
+    var want = meaningCandidates(word.meaning);
+    var got = meaningCandidates(meaningPart);
+    meaningOk = got.some(function(g){ return want.indexOf(g) >= 0; });
+  }
+  return { readingOk: readingOk, meaningOk: meaningOk, ok: readingOk && meaningOk };
+}
+//===PURE_END===
+
+if(typeof module !== 'undefined' && module.exports){
+  module.exports = { romajiToHiragana: romajiToHiragana, parseWordList: parseWordList,
+    parseSentenceList: parseSentenceList, normalizeAnswer: normalizeAnswer,
+    meaningCandidates: meaningCandidates, judgeWordAnswer: judgeWordAnswer };
+}
+
+/* ================= 브라우저 앱 (node 테스트 대상 아님) ================= */
+if(typeof document !== 'undefined'){ (function(){
+  var LS_WORDS = 'kanjiQuiz.words.v1', LS_STATS = 'kanjiQuiz.stats.v1', LS_SENT = 'kanjiQuiz.sentences.v1';
+  var SAMPLE = [   // 주인 교재 '1자 한자' 78단어 (2026-07-02 사진 추출)
+    ['間','あいだ','동안,사이'],
+    ['朝','あさ','아침'],
+    ['頭','あたま','머리'],
+    ['姉','あね','누나,언니'],
+    ['石','いし','돌'],
+    ['妹','いもうと','여동생'],
+    ['牛','うし','소'],
+    ['馬','うま','말'],
+    ['駅','えき','역'],
+    ['音','おと','소리,음'],
+    ['親','おや','어버이,부모'],
+    ['顔','かお','얼굴'],
+    ['方','かた','분'],
+    ['体','からだ','몸'],
+    ['区','く','구,지역'],
+    ['首','くび','목,고개'],
+    ['県','けん','현'],
+    ['秋','あき','가을'],
+    ['味','あじ','맛'],
+    ['兄','あに','형,오빠'],
+    ['池','いけ','연못'],
+    ['犬','いぬ','개'],
+    ['色','いろ','색,색깔'],
+    ['歌','うた','노래'],
+    ['海','うみ','바다'],
+    ['お茶','おちゃ','차'],
+    ['弟','おとうと','남동생'],
+    ['お湯','おゆ','뜨거운물'],
+    ['風','かぜ','바람'],
+    ['紙','かみ','종이'],
+    ['気','き','정신,기운'],
+    ['薬','くすり','약'],
+    ['雲','くも','구름'],
+    ['声','こえ','목소리'],
+    ['氷','こおり','얼음'],
+    ['事','こと','일,것'],
+    ['米','こめ','쌀'],
+    ['市','し','시'],
+    ['席','せき','자리'],
+    ['空','そら','하늘'],
+    ['力','ちから','힘'],
+    ['寺','てら','절'],
+    ['度','ど','도,온도'],
+    ['鳥','とり','새'],
+    ['西','にし','서쪽'],
+    ['話','はなし','이야기'],
+    ['春','はる','봄'],
+    ['昼','ひる','낮,정오'],
+    ['船','ふね','배'],
+    ['文','ぶん','글,문장'],
+    ['豆','まめ','콩'],
+    ['港','みなと','항구'],
+    ['村','むら','마을'],
+    ['森','もり','숲'],
+    ['役','やく','역할,임무'],
+    ['夜','よる','밤'],
+    ['心','こころ','마음'],
+    ['ご飯','ごはん','밥,식사'],
+    ['魚','さかな','물고기,생선'],
+    ['字','じ','글씨'],
+    ['線','せん','선'],
+    ['畳','たたみ','다다미'],
+    ['机','つくえ','책상'],
+    ['都','と','도'],
+    ['所','ところ','곳'],
+    ['夏','なつ','여름'],
+    ['花','はな','꽃'],
+    ['林','はやし','수풀,숲'],
+    ['光','ひかり','빛'],
+    ['服','ふく','옷'],
+    ['冬','ふゆ','겨울'],
+    ['町','まち','시가지,시내'],
+    ['店','みせ','가게'],
+    ['耳','みみ','귀'],
+    ['目','め','눈'],
+    ['門','もん','문'],
+    ['雪','ゆき','눈'],
+    ['私','わたし','나,저']
+  ].map(function(a){ return {kanji:a[0], reading:a[1], meaning:a[2]}; });
+  var SAMPLE_S = [   // 주인 등록 문장 8 (2026-07-02)
+    ['빨간 가방을 가지고 싶습니다','赤いかばんがほしいです','あかいかばんがほしいです'],
+    ['테이블 위에 고양이가 있습니다','テーブルの上にねこがいます','てーぶるのうえにねこがいます'],
+    ['저는 커피로 하겠습니다','わたしはコーヒーにします','わたしはこーひーにします'],
+    ['애인을 만나고 싶습니다','恋人に会いたいです','こいびとにあいたいです'],
+    ['내일은 맑을 거라고 생각합니다','あしたははれると思います','あしたははれるとおもいます'],
+    ['감기로 학교를 쉬었습니다','風邪で学校を休みました','かぜでがっこうをやすみました'],
+    ['치즈는 우유로부터 만듭니다','チーズはぎゅうにゅうから作ります','ちーずはぎゅうにゅうからつくります'],
+    ['뜨거우니깐 조심하세요','熱いですから気をつけてください','あついですからきをつけてください']
+  ].map(function(a){ return {ko:a[0], ja:a[1], kana:a[2]}; });
+
+  var $ = function(id){ return document.getElementById(id); };
+  var words = loadJSON(LS_WORDS, []), sentences = loadJSON(LS_SENT, []), stats = loadJSON(LS_STATS, {});
+  var queue = [], current = null, roundTotal = 0, missedSet = {}, awaitingNext = false;
+
+  function loadJSON(k, def){ try{ return JSON.parse(localStorage.getItem(k)) || def; }catch(e){ return def; } }
+  function saveWords(){ localStorage.setItem(LS_WORDS, JSON.stringify(words)); }
+  function saveSent(){ localStorage.setItem(LS_SENT, JSON.stringify(sentences)); }
+  function saveStats(){ localStorage.setItem(LS_STATS, JSON.stringify(stats)); }
+  function hasMeaning(w){ return !!(w.meaning && String(w.meaning).trim()); }
+  function key(it){ return it._t === 's' ? ('S|' + it.ko) : (it.kanji + '|' + it.reading); }
+  function refreshCount(){
+    $('count').textContent = '등록된 단어: ' + words.length + '개';
+    $('countS').textContent = '등록된 문장: ' + sentences.length + '개';
+  }
+  function pruneStats(pred){ Object.keys(stats).forEach(function(k){ if(pred(k)) delete stats[k]; }); saveStats(); }
+
+  // ---- 등록: 단어 (기존 키·형식 유지 = 하위호환) ----
+  function mergeWords(newList){
+    var idx = {}; words.forEach(function(w,i){ idx[w.kanji] = i; });
+    newList.forEach(function(w){
+      if(idx[w.kanji] !== undefined) words[idx[w.kanji]] = w;
+      else { idx[w.kanji] = words.length; words.push(w); }
+    });
+    saveWords(); refreshCount();
+  }
+  $('btnAdd').onclick = function(){
+    var list = parseWordList($('input').value);
+    if(!list.length){ alert('인식된 단어가 없습니다. "한자,읽기,뜻" 형식으로 입력하세요.'); return; }
+    mergeWords(list); $('input').value = ''; alert(list.length + '개 단어를 등록했습니다.');
+  };
+  $('btnSample').onclick = function(){ mergeWords(SAMPLE.slice()); alert('교재 단어 78개를 불러왔습니다.'); };
+  $('btnClear').onclick = function(){
+    if(!confirm('등록된 단어와 관련 진행기록을 삭제할까요?')) return;
+    words = []; pruneStats(function(k){ return k.indexOf('S|') !== 0; }); saveWords(); refreshCount();
+  };
+  $('file').onchange = function(e){
+    var f = e.target.files[0]; if(!f) return; var r = new FileReader();
+    r.onload = function(){ var l = parseWordList(r.result); mergeWords(l); alert(l.length + '개 단어를 파일에서 등록했습니다.'); };
+    r.readAsText(f); e.target.value = '';
+  };
+
+  // ---- 등록: 문장 ----
+  function mergeSentences(newList){
+    var idx = {}; sentences.forEach(function(s,i){ idx[s.ko] = i; });
+    newList.forEach(function(s){
+      if(idx[s.ko] !== undefined) sentences[idx[s.ko]] = s;
+      else { idx[s.ko] = sentences.length; sentences.push(s); }
+    });
+    saveSent(); refreshCount();
+  }
+  $('btnAddS').onclick = function(){
+    var list = parseSentenceList($('inputS').value);
+    if(!list.length){ alert('인식된 문장이 없습니다. "한국어 | 일본어 | 가나읽기" (구분자 탭/|/=>)로 입력하세요.'); return; }
+    mergeSentences(list); $('inputS').value = ''; alert(list.length + '개 문장을 등록했습니다.');
+  };
+  $('btnSampleS').onclick = function(){ mergeSentences(SAMPLE_S.slice()); alert('내장 문장 8개를 불러왔습니다.'); };
+  $('btnClearS').onclick = function(){
+    if(!confirm('등록된 문장과 관련 진행기록을 삭제할까요?')) return;
+    sentences = []; pruneStats(function(k){ return k.indexOf('S|') === 0; }); saveSent(); refreshCount();
+  };
+  $('fileS').onchange = function(e){
+    var f = e.target.files[0]; if(!f) return; var r = new FileReader();
+    r.onload = function(){ var l = parseSentenceList(r.result); mergeSentences(l); alert(l.length + '개 문장을 파일에서 등록했습니다.'); };
+    r.readAsText(f); e.target.value = '';
+  };
+
+  // ---- 퀴즈 ----
+  function shuffle(a){ a = a.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+  function weakScore(it){ var s = stats[key(it)] || {c:0,w:0}; return s.w - s.c; }
+  function tagged(list, t){ return list.map(function(x){ var o = {_t:t}; for(var kk in x){ o[kk] = x[kk]; } return o; }); }
+  function pool(){
+    var r = $('optRange').value, arr = [];
+    if(r !== 'sentence') arr = arr.concat(tagged(words, 'w'));
+    if(r !== 'word')     arr = arr.concat(tagged(sentences, 's'));
+    return arr;
+  }
+
+  $('btnStart').onclick = function(){
+    var p = pool();
+    if(!p.length){ alert('먼저 단어나 문장을 등록하세요 (샘플 버튼으로 바로 체험 가능).'); return; }
+    var base = shuffle(p);
+    if($('optWeak').checked) base.sort(function(a,b){ return weakScore(b) - weakScore(a); });
+    queue = base.slice(); roundTotal = queue.length; missedSet = {}; awaitingNext = false;
+    $('quizPanel').classList.remove('hidden'); $('result').classList.add('hidden'); $('quiz').classList.remove('hidden');
+    next(); $('answer').focus();
+    if($('quizPanel').scrollIntoView) $('quizPanel').scrollIntoView({behavior:'smooth', block:'start'});  // 모바일: 등록패널 가림 방지
+  };
+
+  function setPlaceholder(){
+    if(!current) return;
+    if(current._t === 's') $('answer').placeholder = '일본어로 입력';
+    else if($('optReadingOnly').checked || !hasMeaning(current)) $('answer').placeholder = '읽기 입력 (예: gakkou)';
+    else $('answer').placeholder = '읽기/뜻 (예: aida/동안)';
+  }
+  function showHint(){   // 읽기+뜻 채점 중엔 답 유출 방지로 숨김 → 읽기만 채점 & 단어일 때만
+    var h = '';
+    if(current && current._t === 'w' && $('optReadingOnly').checked && $('optHint').checked)
+      h = '뜻: ' + (current.meaning || '(없음)');
+    $('hint').textContent = h;
+  }
+
+  function next(){
+    awaitingNext = false;
+    $('feedback').textContent = ''; $('feedback').className = 'feedback';
+    $('answer').value = ''; $('kanaPreview').textContent = '';
+    if(!queue.length){ finish(); return; }
+    current = queue[0];
+    if(current._t === 's'){ $('kanji').className = 'kanji sentence'; $('kanji').textContent = current.ko; }
+    else { $('kanji').className = 'kanji'; $('kanji').textContent = current.kanji; }
+    $('progress').textContent = '남은 문제: ' + queue.length + ' / 이번 라운드 ' + roundTotal + '개';
+    $('btnGo').textContent = '판정 ▶';
+    setPlaceholder(); showHint(); $('answer').focus();
+  }
+
+  $('optHint').onchange = function(){ if(current && !awaitingNext) showHint(); };
+  $('optReadingOnly').onchange = function(){
+    $('optHint').disabled = !$('optReadingOnly').checked;
+    if(!$('optReadingOnly').checked) $('optHint').checked = false;
+    if(current && !awaitingNext){ setPlaceholder(); showHint(); }
+  };
+
+  $('answer').addEventListener('input', function(){
+    $('kanaPreview').textContent = $('answer').value ? ('→ ' + romajiToHiragana($('answer').value.trim())) : '';
+  });
+  $('answer').addEventListener('keydown', function(e){
+    if(e.key !== 'Enter') return;
+    e.preventDefault();
+    if(awaitingNext){ next(); return; }
+    judge();
+  });
+  // 모바일 판정/다음 버튼 — Enter와 동일 동작
+  $('btnGo').onclick = function(){ if(awaitingNext){ next(); } else { judge(); } };
+
+  function judge(){
+    var raw = $('answer').value;
+    if(!raw.trim()) return;
+    var k = key(current), st = stats[k] || {c:0, w:0};
+    var ok, answerDisplay, detail = '';
+    if(current._t === 's'){
+      var nConv = normalizeAnswer(romajiToHiragana(raw.trim()));
+      ok = (nConv === normalizeAnswer(current.ja)) || (!!current.kana && nConv === normalizeAnswer(current.kana));
+      answerDisplay = current.ja + (current.kana ? ('  (' + current.kana + ')') : '');
+    } else {
+      var r = judgeWordAnswer(raw, current, $('optReadingOnly').checked);
+      ok = r.ok;
+      answerDisplay = current.reading + (hasMeaning(current) ? (' / ' + current.meaning) : '');
+      if(!ok) detail = ' <span class="hint">[읽기' + (r.readingOk?'✓':'✗') + ' 뜻' + (r.meaningOk?'✓':'✗') + ']</span>';
+    }
+    if(ok){
+      st.c++; stats[k] = st; saveStats();
+      $('feedback').textContent = '✓ 정답!'; $('feedback').className = 'feedback ok';
+      queue.shift(); setTimeout(next, 550);
+    } else {
+      st.w++; stats[k] = st; saveStats(); missedSet[k] = current;
+      $('feedback').innerHTML = '✗ 오답 — 정답: <span class="big">' + answerDisplay + '</span>' + detail + '<br><span class="hint">Enter 또는 아래 [다음 →]</span>';
+      $('feedback').className = 'feedback ng';
+      $('btnGo').textContent = '다음 →';
+      queue.push(queue.shift()); awaitingNext = true;
+    }
+  }
+
+  function finish(){
+    $('quiz').classList.add('hidden');
+    var missed = Object.keys(missedSet).map(function(k){ return missedSet[k]; });
+    var firstTryOk = roundTotal - missed.length;
+    var pct = roundTotal ? Math.round(firstTryOk / roundTotal * 100) : 0;
+    var html = '<h2>라운드 완료 🎉</h2>' +
+      '<div class="big">첫 시도 정답률 ' + pct + '%</div>' +
+      '<div class="count">' + firstTryOk + ' / ' + roundTotal + ' 문항을 한 번에 맞혔습니다.</div>';
+    if(missed.length){
+      html += '<div class="missed">틀린 문항:<br>' + missed.map(function(w){
+        return w._t === 's' ? ('· ' + w.ko + '  → ' + w.ja) : ('· ' + w.kanji + '  (' + w.reading + ' / ' + (w.meaning||'') + ')');
+      }).join('<br>') + '</div><br>';
+    }
+    html += '<div class="row" style="justify-content:center;"><button id="btnRetry">다시 도전 ▶</button></div>';
+    $('result').innerHTML = html; $('result').classList.remove('hidden');
+    $('btnRetry').onclick = $('btnStart').onclick;
+  }
+
+  $('optHint').disabled = !$('optReadingOnly').checked;   // 초기: 읽기+뜻 채점(기본)이면 힌트 비활성
+  if(!words.length) mergeWords(SAMPLE.slice());   // 첫 실행: 교재 단어 자동 등록
+  if(!sentences.length) mergeSentences(SAMPLE_S.slice());   // 첫 실행: 문장 자동 등록
+  refreshCount();
+})(); }
+</script>
+</body>
+</html>
