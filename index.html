@@ -350,7 +350,7 @@ if(typeof module !== 'undefined' && module.exports){
 if(typeof document !== 'undefined'){ (function(){
   var LS_WORDS = 'kanjiQuiz.words.v1', LS_STATS = 'kanjiQuiz.stats.v1', LS_SENT = 'kanjiQuiz.sentences.v1';
   var LS_ACTIVESET = 'kanjiQuiz.activeSet.v1', LS_SAMPLEVER = 'kanjiQuiz.sampleVer.v1';
-  var SAMPLE_VER = 2;   // SAMPLE(교재 단어)가 바뀔 때마다 +1 → 앱 열 때 새 세트 자동 병합·오늘 세트로 설정
+  var SAMPLE_VER = 3;   // SAMPLE 단어/문장이 바뀔 때마다 +1 → 앱 열 때 새 세트·문장 자동 병합·오늘 세트로 설정
   var ALLSETS = '__ALL__';
   // 세트(덱) 라벨 — 매일 시험이 달라 세트별로 나눠 출제. 새 세트는 아래 배열 뒤에 추가.
   var SET1 = '1자 한자', SET2 = 'N4 명사·형용사';
@@ -528,7 +528,15 @@ if(typeof document !== 'undefined'){ (function(){
     ['내일은 맑을 거라고 생각합니다','あしたははれると思います','あしたははれるとおもいます'],
     ['감기로 학교를 쉬었습니다','風邪で学校を休みました','かぜでがっこうをやすみました'],
     ['치즈는 우유로부터 만듭니다','チーズはぎゅうにゅうから作ります','ちーずはぎゅうにゅうからつくります'],
-    ['뜨거우니깐 조심하세요','熱いですから気をつけてください','あついですからきをつけてください']
+    ['뜨거우니깐 조심하세요','熱いですから気をつけてください','あついですからきをつけてください'],
+    /* --- 주인 등록 문장 7 (2026-07-03) --- */
+    ['엄마는 교토에 가고 싶어합니다','母は京都に行きたがっています','はははきょうとにいきたがっています'],
+    ['갑자기 비가 내리기 시작했습니다','急に雨が降り出しました','きゅうにあめがふりだしました'],
+    ['이 책은 벌써 다 읽었습니까','この本はもう読み終わりましたか','このほんはもうよみおわりましたか'],
+    ['너무 먹다','食べすぎる','たべすぎる'],
+    ['이 책은 글자가 작아서 읽기 힘듭니다','この本は字が小さくて読みにくいです','このほんはじがちいさくてよみにくいです'],
+    ['이 컴퓨터의 사용법을 알려 주세요','このパソコンの使い方を教えてください','このぱそこんのつかいかたをおしえてください'],
+    ['음악을 들으면서 운전을 하고 있습니다','音楽を聞きながらうんてんをしています','おんがくをききながらうんてんをしています']
   ].map(function(a){ return {ko:a[0], ja:a[1], kana:a[2]}; });
 
   var $ = function(id){ return document.getElementById(id); };
@@ -863,15 +871,13 @@ if(typeof document !== 'undefined'){ (function(){
   $('optHint').disabled = !$('optReadingOnly').checked;   // 초기: 읽기+뜻 채점(기본)이면 힌트 비활성
   migrateSets();   // 구버전 데이터(세트 없음) → 세트 스탬프
   var _sv = +(localStorage.getItem(LS_SAMPLEVER) || 0);
-  if(!words.length){
-    mergeWords(SAMPLE.slice());                       // 첫 실행: 전체 교재 단어 등록
+  if(!words.length || _sv < SAMPLE_VER){
+    mergeWords(SAMPLE.slice());                       // 첫 실행/갱신: 교재 단어 병합(기존 단어·진행기록 유지)
+    mergeSentences(SAMPLE_S.slice());                 // 첫 실행/갱신: 내장 문장 병합
     setActiveSet(SAMPLE[SAMPLE.length-1].set);        // 오늘(마지막) 세트만 출제
-  } else if(_sv < SAMPLE_VER){
-    mergeWords(SAMPLE.slice());                       // 갱신: 새 세트 자동 추가(기존 단어·진행기록 유지)
-    setActiveSet(SAMPLE[SAMPLE.length-1].set);        // 오늘 세트로 자동 전환
   }
   localStorage.setItem(LS_SAMPLEVER, SAMPLE_VER);
-  if(!sentences.length) mergeSentences(SAMPLE_S.slice());   // 첫 실행: 문장 자동 등록
+  if(!sentences.length) mergeSentences(SAMPLE_S.slice());   // 안전망: 문장 비었으면 채움
   refreshCount();
 })(); }
 </script>
