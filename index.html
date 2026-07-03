@@ -350,7 +350,7 @@ if(typeof module !== 'undefined' && module.exports){
 if(typeof document !== 'undefined'){ (function(){
   var LS_WORDS = 'kanjiQuiz.words.v1', LS_STATS = 'kanjiQuiz.stats.v1', LS_SENT = 'kanjiQuiz.sentences.v1';
   var LS_ACTIVESET = 'kanjiQuiz.activeSet.v1', LS_SAMPLEVER = 'kanjiQuiz.sampleVer.v1';
-  var SAMPLE_VER = 3;   // SAMPLE 단어/문장이 바뀔 때마다 +1 → 앱 열 때 새 세트·문장 자동 병합·오늘 세트로 설정
+  var SAMPLE_VER = 4;   // SAMPLE 단어/문장이 바뀔 때마다 +1 → 앱 열 때 새 세트·문장 자동 병합·오늘 세트로 설정
   var ALLSETS = '__ALL__';
   // 세트(덱) 라벨 — 매일 시험이 달라 세트별로 나눠 출제. 새 세트는 아래 배열 뒤에 추가.
   var SET1 = '1자 한자', SET2 = 'N4 명사·형용사';
@@ -520,7 +520,7 @@ if(typeof document !== 'undefined'){ (function(){
   ].map(function(a){ return {kanji:a[0], reading:a[1], meaning:a[2], set:SET2}; });
   // 전체 교재 단어 = 모든 세트 합침 (순서 = 세트 순서, 마지막 세트가 '오늘 세트')
   var SAMPLE = SAMPLE_KANJI1.concat(SAMPLE_N4);
-  var SAMPLE_S = [   // 주인 등록 문장 8 (2026-07-02)
+  var SAMPLE_S1 = [   // 주인 문장 — '1자 한자' 세트 (2026-07-02)
     ['빨간 가방을 가지고 싶습니다','赤いかばんがほしいです','あかいかばんがほしいです'],
     ['테이블 위에 고양이가 있습니다','テーブルの上にねこがいます','てーぶるのうえにねこがいます'],
     ['저는 커피로 하겠습니다','わたしはコーヒーにします','わたしはこーひーにします'],
@@ -528,8 +528,9 @@ if(typeof document !== 'undefined'){ (function(){
     ['내일은 맑을 거라고 생각합니다','あしたははれると思います','あしたははれるとおもいます'],
     ['감기로 학교를 쉬었습니다','風邪で学校を休みました','かぜでがっこうをやすみました'],
     ['치즈는 우유로부터 만듭니다','チーズはぎゅうにゅうから作ります','ちーずはぎゅうにゅうからつくります'],
-    ['뜨거우니깐 조심하세요','熱いですから気をつけてください','あついですからきをつけてください'],
-    /* --- 주인 등록 문장 7 (2026-07-03) --- */
+    ['뜨거우니깐 조심하세요','熱いですから気をつけてください','あついですからきをつけてください']
+  ].map(function(a){ return {ko:a[0], ja:a[1], kana:a[2], set:SET1}; });
+  var SAMPLE_S2 = [   // 주인 문장 — 'N4 명사·형용사' 세트 (2026-07-03)
     ['엄마는 교토에 가고 싶어합니다','母は京都に行きたがっています','はははきょうとにいきたがっています'],
     ['갑자기 비가 내리기 시작했습니다','急に雨が降り出しました','きゅうにあめがふりだしました'],
     ['이 책은 벌써 다 읽었습니까','この本はもう読み終わりましたか','このほんはもうよみおわりましたか'],
@@ -537,7 +538,8 @@ if(typeof document !== 'undefined'){ (function(){
     ['이 책은 글자가 작아서 읽기 힘듭니다','この本は字が小さくて読みにくいです','このほんはじがちいさくてよみにくいです'],
     ['이 컴퓨터의 사용법을 알려 주세요','このパソコンの使い方を教えてください','このぱそこんのつかいかたをおしえてください'],
     ['음악을 들으면서 운전을 하고 있습니다','音楽を聞きながらうんてんをしています','おんがくをききながらうんてんをしています']
-  ].map(function(a){ return {ko:a[0], ja:a[1], kana:a[2]}; });
+  ].map(function(a){ return {ko:a[0], ja:a[1], kana:a[2], set:SET2}; });
+  var SAMPLE_S = SAMPLE_S1.concat(SAMPLE_S2);   // 전체 문장 = 세트별 합침
 
   var $ = function(id){ return document.getElementById(id); };
   var words = loadJSON(LS_WORDS, []), sentences = loadJSON(LS_SENT, []), stats = loadJSON(LS_STATS, {});
@@ -551,10 +553,11 @@ if(typeof document !== 'undefined'){ (function(){
   function key(it){ return it._t === 's' ? ('S|' + it.ko) : (it.kanji + '|' + it.reading); }
   function refreshCount(){
     populateSetSel();
-    var a = activeSet(), inSet = wordsInActiveSet().length;
-    var setInfo = (a === ALLSETS) ? '' : ' · 오늘 출제 세트 「' + a + '」 ' + inSet + '개';
-    $('count').textContent = '등록된 단어: ' + words.length + '개' + setInfo;
-    $('countS').textContent = '등록된 문장: ' + sentences.length + '개';
+    var a = activeSet();
+    var wInfo = (a === ALLSETS) ? '' : ' · 출제 세트 「' + a + '」 ' + wordsInActiveSet().length + '개';
+    var sInfo = (a === ALLSETS) ? '' : ' · 이 세트 ' + sentencesInActiveSet().length + '개 출제';
+    $('count').textContent = '등록된 단어: ' + words.length + '개' + wInfo;
+    $('countS').textContent = '등록된 문장: ' + sentences.length + '개' + sInfo;
     if($('wordGrid')) renderWordGrid();
   }
   function pruneStats(pred){ Object.keys(stats).forEach(function(k){ if(pred(k)) delete stats[k]; }); saveStats(); }
@@ -562,8 +565,10 @@ if(typeof document !== 'undefined'){ (function(){
   // ---- 세트(덱) ----
   function todayLabel(){ var d = new Date(); return (d.getMonth()+1) + '/' + d.getDate() + ' 세트'; }
   function setOf(w){ return (w && w.set) ? w.set : '기타'; }
-  function distinctSets(){   // 등록 순서 유지하며 중복 제거
-    var seen = {}, list = []; words.forEach(function(w){ var s = setOf(w); if(!seen[s]){ seen[s] = 1; list.push(s); } }); return list;
+  function distinctSets(){   // 등록 순서 유지하며 중복 제거 (단어+문장)
+    var seen = {}, list = [];
+    function add(x){ var s = setOf(x); if(!seen[s]){ seen[s] = 1; list.push(s); } }
+    words.forEach(add); sentences.forEach(add); return list;
   }
   function activeSet(){ return localStorage.getItem(LS_ACTIVESET) || ALLSETS; }
   function setActiveSet(s){ localStorage.setItem(LS_ACTIVESET, s); }
@@ -571,12 +576,20 @@ if(typeof document !== 'undefined'){ (function(){
     var a = activeSet(); if(a === ALLSETS) return words;
     return words.filter(function(w){ return setOf(w) === a; });
   }
+  function sentencesInActiveSet(){
+    var a = activeSet(); if(a === ALLSETS) return sentences;
+    return sentences.filter(function(s){ return setOf(s) === a; });
+  }
   // 구버전 데이터(세트 없음) → SAMPLE 기준으로 세트 스탬프, 없으면 '기타'
   function migrateSets(){
-    var m = {}; SAMPLE.forEach(function(w){ m[w.kanji] = w.set; });
-    var changed = false;
-    words.forEach(function(w){ if(!w.set){ w.set = m[w.kanji] || '기타'; changed = true; } });
-    if(changed) saveWords();
+    var mw = {}; SAMPLE.forEach(function(w){ mw[w.kanji] = w.set; });
+    var cw = false;
+    words.forEach(function(w){ if(!w.set){ w.set = mw[w.kanji] || '기타'; cw = true; } });
+    if(cw) saveWords();
+    var ms = {}; SAMPLE_S.forEach(function(s){ ms[s.ko] = s.set; });
+    var cs = false;
+    sentences.forEach(function(s){ if(!s.set){ s.set = ms[s.ko] || '기타'; cs = true; } });
+    if(cs) saveSent();
   }
   function populateSetSel(){
     if(!$('optSet')) return;
@@ -707,7 +720,7 @@ if(typeof document !== 'undefined'){ (function(){
   $('btnAdd').onclick = function(){
     var list = parseWordList($('input').value);
     if(!list.length){ alert('인식된 단어가 없습니다. "한자,읽기,뜻" 형식으로 입력하세요.'); return; }
-    var sn = ($('addSet').value || '').trim() || todayLabel();
+    var sn = addSetName();
     mergeWords(list, sn); setActiveSet(sn); populateSetSel(); if($('optSet')) $('optSet').value = sn; refreshCount();
     $('input').value = ''; alert(list.length + '개 단어를 「' + sn + '」 세트로 등록했습니다.');
   };
@@ -720,7 +733,7 @@ if(typeof document !== 'undefined'){ (function(){
     var f = e.target.files[0]; if(!f) return; var r = new FileReader();
     r.onload = function(){
       var l = parseWordList(r.result);
-      var sn = ($('addSet').value || '').trim() || todayLabel();
+      var sn = addSetName();
       mergeWords(l, sn); setActiveSet(sn); populateSetSel(); if($('optSet')) $('optSet').value = sn; refreshCount();
       alert(l.length + '개 단어를 「' + sn + '」 세트로 파일에서 등록했습니다.');
     };
@@ -728,27 +741,38 @@ if(typeof document !== 'undefined'){ (function(){
   };
 
   // ---- 등록: 문장 ----
-  function mergeSentences(newList){
+  function mergeSentences(newList, setName){
     var idx = {}; sentences.forEach(function(s,i){ idx[s.ko] = i; });
     newList.forEach(function(s){
+      if(setName && !s.set) s.set = setName;
       if(idx[s.ko] !== undefined) sentences[idx[s.ko]] = s;
       else { idx[s.ko] = sentences.length; sentences.push(s); }
     });
     saveSent(); refreshCount();
   }
+  function addSetName(){   // 수동 등록 시 묶을 세트: 입력값 > 현재 출제세트 > 오늘날짜
+    var typed = ($('addSet').value || '').trim(); if(typed) return typed;
+    var a = activeSet(); return (a && a !== ALLSETS) ? a : todayLabel();
+  }
   $('btnAddS').onclick = function(){
     var list = parseSentenceList($('inputS').value);
     if(!list.length){ alert('인식된 문장이 없습니다. "한국어 | 일본어 | 가나읽기" (구분자 탭/|/=>)로 입력하세요.'); return; }
-    mergeSentences(list); $('inputS').value = ''; alert(list.length + '개 문장을 등록했습니다.');
+    var sn = addSetName();
+    mergeSentences(list, sn); setActiveSet(sn); refreshCount();
+    $('inputS').value = ''; alert(list.length + '개 문장을 「' + sn + '」 세트로 등록했습니다.');
   };
-  $('btnSampleS').onclick = function(){ mergeSentences(SAMPLE_S.slice()); alert('내장 문장 8개를 불러왔습니다.'); };
+  $('btnSampleS').onclick = function(){ mergeSentences(SAMPLE_S.slice()); alert('내장 문장 ' + SAMPLE_S.length + '개(모든 세트)를 불러왔습니다.'); };
   $('btnClearS').onclick = function(){
     if(!confirm('등록된 문장과 관련 진행기록을 삭제할까요?')) return;
     sentences = []; pruneStats(function(k){ return k.indexOf('S|') === 0; }); saveSent(); refreshCount();
   };
   $('fileS').onchange = function(e){
     var f = e.target.files[0]; if(!f) return; var r = new FileReader();
-    r.onload = function(){ var l = parseSentenceList(r.result); mergeSentences(l); alert(l.length + '개 문장을 파일에서 등록했습니다.'); };
+    r.onload = function(){
+      var l = parseSentenceList(r.result); var sn = addSetName();
+      mergeSentences(l, sn); setActiveSet(sn); refreshCount();
+      alert(l.length + '개 문장을 「' + sn + '」 세트로 파일에서 등록했습니다.');
+    };
     r.readAsText(f); e.target.value = '';
   };
 
@@ -759,7 +783,7 @@ if(typeof document !== 'undefined'){ (function(){
   function pool(){
     var r = $('optRange').value, arr = [];
     if(r !== 'sentence') arr = arr.concat(tagged(wordsInActiveSet(), 'w'));   // 선택 세트만 출제
-    if(r !== 'word')     arr = arr.concat(tagged(sentences, 's'));
+    if(r !== 'word')     arr = arr.concat(tagged(sentencesInActiveSet(), 's'));
     return arr;
   }
 
