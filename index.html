@@ -121,12 +121,14 @@
     <h2>단어 등록</h2>
     <textarea id="input" placeholder="줄당 한 단어:  한자,읽기,뜻&#10;구분자는 콤마/탭/공백 자동 감지&#10;예)  学校,がっこう,학교&#10;       先生   せんせい   선생님"></textarea>
     <div class="row">
+      <input id="addSet" placeholder="세트 이름 (예: 7/4 N4동사)" autocomplete="off" style="flex:1; min-width:150px;">
       <button id="btnAdd">등록/추가</button>
       <input type="file" id="file" accept=".csv,.txt">
-      <button class="ghost" id="btnSample">교재 단어 157</button>
+      <button class="ghost" id="btnSample">교재 단어 불러오기</button>
       <button class="danger" id="btnClear">전체 삭제</button>
     </div>
     <div class="count" id="count">등록된 단어: 0개</div>
+    <div class="note">새로 등록/불러오는 단어는 위 <b>세트 이름</b>으로 묶입니다(비우면 오늘 날짜). 세트는 아래 <b>옵션 → 출제 세트</b>에서 골라 그 세트만 시험 볼 수 있습니다.</div>
   </div>
 
   <!-- 문장 등록 -->
@@ -146,6 +148,9 @@
   <div class="panel">
     <h2>옵션</h2>
     <div class="row">
+      <label class="toggle">출제 세트:
+        <select id="optSet"></select>
+      </label>
       <label class="toggle">출제 범위:
         <select id="optRange">
           <option value="word">단어만</option>
@@ -344,7 +349,12 @@ if(typeof module !== 'undefined' && module.exports){
 /* ================= 브라우저 앱 (node 테스트 대상 아님) ================= */
 if(typeof document !== 'undefined'){ (function(){
   var LS_WORDS = 'kanjiQuiz.words.v1', LS_STATS = 'kanjiQuiz.stats.v1', LS_SENT = 'kanjiQuiz.sentences.v1';
-  var SAMPLE = [   // 주인 교재 단어 157 = 1자한자 78(7/2) + N4 명사·형용사 79(7/3)
+  var LS_ACTIVESET = 'kanjiQuiz.activeSet.v1', LS_SAMPLEVER = 'kanjiQuiz.sampleVer.v1';
+  var SAMPLE_VER = 2;   // SAMPLE(교재 단어)가 바뀔 때마다 +1 → 앱 열 때 새 세트 자동 병합·오늘 세트로 설정
+  var ALLSETS = '__ALL__';
+  // 세트(덱) 라벨 — 매일 시험이 달라 세트별로 나눠 출제. 새 세트는 아래 배열 뒤에 추가.
+  var SET1 = '1자 한자', SET2 = 'N4 명사·형용사';
+  var SAMPLE_KANJI1 = [   // 주인 교재 '1자 한자' 78 (2026-07-02 사진)
     ['間','あいだ','동안,사이'],
     ['朝','あさ','아침'],
     ['頭','あたま','머리'],
@@ -422,8 +432,10 @@ if(typeof document !== 'undefined'){ (function(){
     ['目','め','눈'],
     ['門','もん','문'],
     ['雪','ゆき','눈'],
-    ['私','わたし','나,저'],
-    /* --- N4 ② 동작성 명사 33 (2026-07-03 사진 추출) --- */
+    ['私','わたし','나,저']
+  ].map(function(a){ return {kanji:a[0], reading:a[1], meaning:a[2], set:SET1}; });
+  var SAMPLE_N4 = [   // N4 ②동작성명사33 + ③い형용사33 + ④な형용사13 = 79 (2026-07-03 사진)
+    /* --- ② 동작성 명사 33 --- */
     ['安心','あんしん','안심'],
     ['運転','うんてん','운전'],
     ['営業','えいぎょう','영업'],
@@ -505,7 +517,9 @@ if(typeof document !== 'undefined'){ (function(){
     ['便利だ','べんりだ','편리하다'],
     ['無理だ','むりだ','무리하다'],
     ['有名だ','ゆうめいだ','유명하다']
-  ].map(function(a){ return {kanji:a[0], reading:a[1], meaning:a[2]}; });
+  ].map(function(a){ return {kanji:a[0], reading:a[1], meaning:a[2], set:SET2}; });
+  // 전체 교재 단어 = 모든 세트 합침 (순서 = 세트 순서, 마지막 세트가 '오늘 세트')
+  var SAMPLE = SAMPLE_KANJI1.concat(SAMPLE_N4);
   var SAMPLE_S = [   // 주인 등록 문장 8 (2026-07-02)
     ['빨간 가방을 가지고 싶습니다','赤いかばんがほしいです','あかいかばんがほしいです'],
     ['테이블 위에 고양이가 있습니다','テーブルの上にねこがいます','てーぶるのうえにねこがいます'],
@@ -528,11 +542,44 @@ if(typeof document !== 'undefined'){ (function(){
   function hasMeaning(w){ return !!(w.meaning && String(w.meaning).trim()); }
   function key(it){ return it._t === 's' ? ('S|' + it.ko) : (it.kanji + '|' + it.reading); }
   function refreshCount(){
-    $('count').textContent = '등록된 단어: ' + words.length + '개';
+    populateSetSel();
+    var a = activeSet(), inSet = wordsInActiveSet().length;
+    var setInfo = (a === ALLSETS) ? '' : ' · 오늘 출제 세트 「' + a + '」 ' + inSet + '개';
+    $('count').textContent = '등록된 단어: ' + words.length + '개' + setInfo;
     $('countS').textContent = '등록된 문장: ' + sentences.length + '개';
     if($('wordGrid')) renderWordGrid();
   }
   function pruneStats(pred){ Object.keys(stats).forEach(function(k){ if(pred(k)) delete stats[k]; }); saveStats(); }
+
+  // ---- 세트(덱) ----
+  function todayLabel(){ var d = new Date(); return (d.getMonth()+1) + '/' + d.getDate() + ' 세트'; }
+  function setOf(w){ return (w && w.set) ? w.set : '기타'; }
+  function distinctSets(){   // 등록 순서 유지하며 중복 제거
+    var seen = {}, list = []; words.forEach(function(w){ var s = setOf(w); if(!seen[s]){ seen[s] = 1; list.push(s); } }); return list;
+  }
+  function activeSet(){ return localStorage.getItem(LS_ACTIVESET) || ALLSETS; }
+  function setActiveSet(s){ localStorage.setItem(LS_ACTIVESET, s); }
+  function wordsInActiveSet(){
+    var a = activeSet(); if(a === ALLSETS) return words;
+    return words.filter(function(w){ return setOf(w) === a; });
+  }
+  // 구버전 데이터(세트 없음) → SAMPLE 기준으로 세트 스탬프, 없으면 '기타'
+  function migrateSets(){
+    var m = {}; SAMPLE.forEach(function(w){ m[w.kanji] = w.set; });
+    var changed = false;
+    words.forEach(function(w){ if(!w.set){ w.set = m[w.kanji] || '기타'; changed = true; } });
+    if(changed) saveWords();
+  }
+  function populateSetSel(){
+    if(!$('optSet')) return;
+    var list = distinctSets(), cur = activeSet();
+    if(cur !== ALLSETS && list.indexOf(cur) < 0) cur = list.length ? list[list.length-1] : ALLSETS;
+    var html = '<option value="' + ALLSETS + '">전체(모든 세트)</option>' + list.map(function(s){
+      var n = words.filter(function(w){ return setOf(w) === s; }).length;
+      return '<option value="' + esc(s) + '">' + esc(s) + ' (' + n + ')</option>';
+    }).join('');
+    $('optSet').innerHTML = html; $('optSet').value = cur; setActiveSet(cur);
+  }
 
   // ---- 단어장 목록 + 상세 설명 카드 (JLPT Plus 스타일) ----
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
@@ -635,10 +682,15 @@ if(typeof document !== 'undefined'){ (function(){
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeDetail(); });
   $('wordSearch').addEventListener('input', renderWordGrid);
 
+  // 출제 세트 선택 → 저장·화면 갱신
+  $('optSet').onchange = function(){ setActiveSet($('optSet').value); refreshCount(); };
+
   // ---- 등록: 단어 (기존 키·형식 유지 = 하위호환) ----
-  function mergeWords(newList){
+  // setName 지정 시, set 없는 단어에 그 세트를 스탬프(수동 등록·파일). SAMPLE은 자체 set 보유.
+  function mergeWords(newList, setName){
     var idx = {}; words.forEach(function(w,i){ idx[w.kanji] = i; });
     newList.forEach(function(w){
+      if(setName && !w.set) w.set = setName;
       if(idx[w.kanji] !== undefined) words[idx[w.kanji]] = w;
       else { idx[w.kanji] = words.length; words.push(w); }
     });
@@ -647,16 +699,23 @@ if(typeof document !== 'undefined'){ (function(){
   $('btnAdd').onclick = function(){
     var list = parseWordList($('input').value);
     if(!list.length){ alert('인식된 단어가 없습니다. "한자,읽기,뜻" 형식으로 입력하세요.'); return; }
-    mergeWords(list); $('input').value = ''; alert(list.length + '개 단어를 등록했습니다.');
+    var sn = ($('addSet').value || '').trim() || todayLabel();
+    mergeWords(list, sn); setActiveSet(sn); populateSetSel(); if($('optSet')) $('optSet').value = sn; refreshCount();
+    $('input').value = ''; alert(list.length + '개 단어를 「' + sn + '」 세트로 등록했습니다.');
   };
-  $('btnSample').onclick = function(){ mergeWords(SAMPLE.slice()); alert('교재 단어 157개를 불러왔습니다.'); };
+  $('btnSample').onclick = function(){ mergeWords(SAMPLE.slice()); alert('교재 단어 ' + SAMPLE.length + '개(모든 세트)를 불러왔습니다.'); };
   $('btnClear').onclick = function(){
     if(!confirm('등록된 단어와 관련 진행기록을 삭제할까요?')) return;
     words = []; pruneStats(function(k){ return k.indexOf('S|') !== 0; }); saveWords(); refreshCount();
   };
   $('file').onchange = function(e){
     var f = e.target.files[0]; if(!f) return; var r = new FileReader();
-    r.onload = function(){ var l = parseWordList(r.result); mergeWords(l); alert(l.length + '개 단어를 파일에서 등록했습니다.'); };
+    r.onload = function(){
+      var l = parseWordList(r.result);
+      var sn = ($('addSet').value || '').trim() || todayLabel();
+      mergeWords(l, sn); setActiveSet(sn); populateSetSel(); if($('optSet')) $('optSet').value = sn; refreshCount();
+      alert(l.length + '개 단어를 「' + sn + '」 세트로 파일에서 등록했습니다.');
+    };
     r.readAsText(f); e.target.value = '';
   };
 
@@ -691,7 +750,7 @@ if(typeof document !== 'undefined'){ (function(){
   function tagged(list, t){ return list.map(function(x){ var o = {_t:t}; for(var kk in x){ o[kk] = x[kk]; } return o; }); }
   function pool(){
     var r = $('optRange').value, arr = [];
-    if(r !== 'sentence') arr = arr.concat(tagged(words, 'w'));
+    if(r !== 'sentence') arr = arr.concat(tagged(wordsInActiveSet(), 'w'));   // 선택 세트만 출제
     if(r !== 'word')     arr = arr.concat(tagged(sentences, 's'));
     return arr;
   }
@@ -802,7 +861,16 @@ if(typeof document !== 'undefined'){ (function(){
   }
 
   $('optHint').disabled = !$('optReadingOnly').checked;   // 초기: 읽기+뜻 채점(기본)이면 힌트 비활성
-  if(!words.length) mergeWords(SAMPLE.slice());   // 첫 실행: 교재 단어 자동 등록
+  migrateSets();   // 구버전 데이터(세트 없음) → 세트 스탬프
+  var _sv = +(localStorage.getItem(LS_SAMPLEVER) || 0);
+  if(!words.length){
+    mergeWords(SAMPLE.slice());                       // 첫 실행: 전체 교재 단어 등록
+    setActiveSet(SAMPLE[SAMPLE.length-1].set);        // 오늘(마지막) 세트만 출제
+  } else if(_sv < SAMPLE_VER){
+    mergeWords(SAMPLE.slice());                       // 갱신: 새 세트 자동 추가(기존 단어·진행기록 유지)
+    setActiveSet(SAMPLE[SAMPLE.length-1].set);        // 오늘 세트로 자동 전환
+  }
+  localStorage.setItem(LS_SAMPLEVER, SAMPLE_VER);
   if(!sentences.length) mergeSentences(SAMPLE_S.slice());   // 첫 실행: 문장 자동 등록
   refreshCount();
 })(); }
